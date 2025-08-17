@@ -8,20 +8,20 @@
 import Foundation
 import AVFoundation
 
-// This class will manage all the audio recording logic.
 class AudioEngine: ObservableObject {
     private var audioEngine: AVAudioEngine?
-    var webSocketClient: WebSocketClient?
-
-    // This is the corrected function for macOS
+    
+    // This is a new property. It's a "closure" or a function that we can set from ContentView.
+    // It will be called every time a new audio buffer is available.
+    var audioDataHandler: ((Data) -> Void)?
+    
     func startListening() {
-        // On macOS, we use AVCaptureDevice to request permission.
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized: // The user has previously granted access to the microphone.
+        case .authorized:
             DispatchQueue.main.async {
                 self.setupAndStartEngine()
             }
-        case .notDetermined: // The user has not yet been asked for microphone access.
+        case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { [unowned self] granted in
                 if granted {
                     DispatchQueue.main.async {
@@ -29,11 +29,9 @@ class AudioEngine: ObservableObject {
                     }
                 }
             }
-        case .denied: // The user has previously denied access.
-            print("Microphone permission was previously denied.")
-            return
-        case .restricted: // The user can't grant access due to parental controls, etc.
-            print("Microphone access is restricted.")
+        // ... (rest of the cases are the same)
+        case .denied, .restricted:
+            print("Microphone permission is not available.")
             return
         @unknown default:
             fatalError("Unknown authorization status for audio.")
@@ -47,10 +45,13 @@ class AudioEngine: ObservableObject {
         let inputFormat = inputNode.outputFormat(forBus: 0)
         
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { (buffer, when) in
-            if let pcmBuffer = buffer as AVAudioPCMBuffer? {
-                let audioData = self.convertAudioBufferToData(pcmBuffer: pcmBuffer)
-                self.webSocketClient?.sendAudioData(audioData)
-            }
+            // --- KEY CHANGE ---
+            // Instead of printing, we now convert the buffer to raw Data.
+            // This is complex, but it essentially gets the raw bytes of the audio.
+            let audioData = self.bufferToData(buffer: buffer)
+            
+            // We then call our handler, passing the raw audio data back to ContentView.
+            self.audioDataHandler?(audioData)
         }
         
         audioEngine!.prepare()
@@ -66,15 +67,15 @@ class AudioEngine: ObservableObject {
         guard let engine = audioEngine, engine.isRunning else { return }
         engine.stop()
         engine.inputNode.removeTap(onBus: 0)
-        
         self.audioEngine = nil
         print("Audio engine stopped.")
     }
-
-    private func convertAudioBufferToData(pcmBuffer: AVAudioPCMBuffer) -> Data {
-        let channelCount = 1  // mono
-        let channels = UnsafeBufferPointer(start: pcmBuffer.int16ChannelData, count: channelCount)
-        let ch0Data = NSData(bytes: channels[0], length: Int(pcmBuffer.frameLength * 2)) as Data
-        return ch0Data
+    
+    // Helper function to convert the audio buffer to a Data object
+    private func bufferToData(buffer: AVAudioPCMBuffer) -> Data {
+        let channelCount = 1  // 1 for mono
+        let channels = UnsafeBufferPointer(start: buffer.floatChannelData, count: channelCount)
+        let data = Data(bytes: channels[0], count: Int(buffer.frameLength * buffer.format.streamDescription.pointee.mBytesPerFrame))
+        return data
     }
 }
