@@ -1,0 +1,23 @@
+# Xcode
+.DS_Store
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.xcappdata
+!default.xcappdata
+*.v10
+!default.v10
+*.bak
+!default.bak
+*.actool
+!default.actool
+*.xccheckout
+!default.xccheckout
+*.moved-aside
+!default.moved-aside
+DerivedData/
+.idea/
+.vscode/
+xcuserdata/
