@@ -1,7 +1,5 @@
 asyncio
 websockets
-os
-json
 python-dotenv
 groq
 deepgram-sdk
