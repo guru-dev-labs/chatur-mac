@@ -129,92 +129,82 @@ struct ContentView: View {
     }
 
     // MARK: - Core Functions
-    func startCoPilot() {
-        guard !isRunning else { return }
-        
+    // Replace the startCoPilot function in ContentView.swift with this self-contained version.
+
+func startCoPilot() {
+        // Reset state and UI
+        finalTranscript = "Initializing Co-Pilot Engine..."
+        suggestion = "..."
         errorMessage = ""
-        finalTranscript = "Initializing..."
-        suggestion = "Waiting for suggestions..."
-        isRunning = true
-        
-        // Find Python script in bundle
-        guard let scriptPath = Bundle.main.path(forResource: "streaming_latency_test", ofType: "py") else {
-            handleError("Could not find Python script in app bundle.")
+        isRunning = true // Set isRunning to true at the start
+
+        // --- Find Bundled Python Resources ---
+        guard let resourcePath = Bundle.main.resourcePath else {
+            handleError("Could not find app's resource path.")
             return
         }
         
-        // Construct path to Python virtual environment
-        let scriptURL = URL(fileURLWithPath: scriptPath)
-        let pythonEngineURL = scriptURL.deletingLastPathComponent().deletingLastPathComponent()
-        let pythonPath = pythonEngineURL.appendingPathComponent("venv/bin/python").path
-        
-        // Verify Python executable exists
-        guard FileManager.default.fileExists(atPath: pythonPath) else {
-            handleError("Python executable not found at: \(pythonPath)")
-            return
-        }
-        
-        // Process and Pipe Setup
+        let pythonEnginePath = "\(resourcePath)/python_engine"
+        let pythonPath = "/usr/bin/python3"
+        let scriptPath = "\(pythonEnginePath)/streaming_latency_test.py"
+
+        // --- Process and Pipe Setup ---
         let process = Process()
-        process.currentDirectoryURL = pythonEngineURL
+        process.currentDirectoryURL = URL(fileURLWithPath: pythonEnginePath)
+        
+        var environment = ProcessInfo.processInfo.environment
+        environment["PYTHONPATH"] = pythonEnginePath
+        process.environment = environment
+        
         process.executableURL = URL(fileURLWithPath: pythonPath)
         process.arguments = [scriptPath]
         
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
+        let stderrPipe = Pipe() // Capture stderr for debugging
         
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
+        process.standardError = stderrPipe // Assign stderr pipe
         
         self.pythonProcess = process
         self.inputPipe = stdinPipe
         
-        // Handle process termination
-        process.terminationHandler = { process in
+        // --- Stderr Handling ---
+        let stderrHandle = stderrPipe.fileHandleForReading
+        stderrHandle.readabilityHandler = { handle in
+            if let line = String(data: handle.availableData, encoding: .utf8), !line.isEmpty {
+                print("Python stderr: \(line.trimmingCharacters(in: .whitespacesAndNewlines))")
+            }
+        }
+        
+        // --- Stdout Handling (JSON Messages) ---
+        let reader = LineReader(fileHandle: stdoutPipe.fileHandleForReading)
+        reader.onNewLine = { [weak self] line in
+            self?.processJSONMessage(line)
+        }
+        self.lineReader = reader
+        
+        // --- Process Termination Handler ---
+        process.terminationHandler = { [weak self] process in
             DispatchQueue.main.async {
-                self.handleProcessTermination(process)
+                self?.handleProcessTermination(process)
             }
         }
         
-        // Handle stderr for error messages
-        stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            if !data.isEmpty, let errorStr = String(data: data, encoding: .utf8) {
-                DispatchQueue.main.async {
-                    print("Python stderr: \(errorStr)")
-                    if !errorStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        self.errorMessage = "Python error: \(errorStr)"
-                    }
-                }
-            }
+        // --- Audio Engine Setup ---
+        audioEngine.audioDataHandler = { [weak self] data in
+            self?.sendAudioData(data)
         }
         
-        // Handle stdout for JSON messages
-        let lineReader = LineReader(fileHandle: stdoutPipe.fileHandleForReading)
-        lineReader.onNewLine = { line in
-            self.processJSONMessage(line)
-        }
-        
-        // Setup audio data handler
-        audioEngine.audioDataHandler = { data in
-            self.sendAudioData(data)
-        }
-        
-        // Start the process
+        // --- Start Process and Audio Engine ---
         DispatchQueue.global(qos: .background).async {
             do {
                 try process.run()
-                
-                // Start audio engine after process is confirmed running
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.audioEngine.startListening()
-                    self.finalTranscript = "Listening... Speak now!"
-                }
+                self.audioEngine.startListening()
             } catch {
                 DispatchQueue.main.async {
-                    self.handleError("Failed to start Python process: \(error.localizedDescription)")
+                    self.handleError("Could not start the Python process: \(error.localizedDescription)")
                 }
             }
         }
@@ -223,36 +213,33 @@ struct ContentView: View {
     func stopCoPilot() {
         guard isRunning else { return }
         
-        isRunning = false
         finalTranscript = "Stopping..."
         
-        // Stop audio engine first
+        // Stop audio engine first to prevent writing to a closed pipe
         audioEngine.stopListening()
         
-        // Close stdin pipe gracefully
+        // Close stdin pipe gracefully to signal end of stream to Python
         if let pipe = inputPipe {
             do {
                 try pipe.fileHandleForWriting.close()
             } catch {
-                print("Error closing stdin pipe: \(error)")
+                // This error is common if the process already terminated, so we just log it.
+                print("Error closing stdin pipe: \(error.localizedDescription)")
             }
         }
         
-        // Terminate process if still running
+        // Terminate process if it's still running after a short delay
         if let process = pythonProcess, process.isRunning {
-            process.terminate()
-            
-            // Give it a moment to terminate gracefully
-            DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 2.0) {
+            DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 0.5) {
                 if process.isRunning {
-                    process.forceTerminate()
+                    process.terminate() // Ask nicely first
                 }
             }
         }
         
-        cleanupResources()
-        finalTranscript = "Co-pilot stopped."
-        suggestion = "Ready to start again."
+        // The termination handler will call cleanupResources and update the state.
+        // We set isRunning to false here to update the UI immediately.
+        isRunning = false
     }
     
     // MARK: - Helper Functions
@@ -313,7 +300,11 @@ struct ContentView: View {
         pythonProcess = nil
         inputPipe = nil
         errorMessage = ""
+        lineReader = nil // Deallocate line reader
     }
+    
+    // Add a property to hold the LineReader instance
+    @State private var lineReader: LineReader?
 }
 
 // MARK: - LineReader Class

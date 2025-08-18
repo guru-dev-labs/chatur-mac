@@ -87,6 +87,7 @@
 			buildPhases = (
 				4A8609382E51B06C009CCDC1 /* Sources */,
 				4A8609392E51B06C009CCDC1 /* Frameworks */,
+				4A47D0B32E52E771004CB8E6 /* ShellScript */,
 				4A86093A2E51B06C009CCDC1 /* Resources */,
 			);
 			buildRules = (
@@ -149,6 +150,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		4A47D0B32E52E771004CB8E6 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script creates a portable python environment inside our app's Resources folder.\n\n# 1. Define the source path of our Python files inside the Xcode project.\nPYTHON_SRC_DIR=\"${SRCROOT}/Chatur/PythonEngine\"\n\n# 2. Define the destination path inside the final app bundle.\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${EXECUTABLE_FOLDER_PATH}/Contents/Resources/python_engine\"\n\n# 3. Create the destination directory if it doesn't exist.\nmkdir -p \"${DEST_DIR}\"\n\n# 4. Use pip to install the dependencies from requirements.txt into the destination folder.\n# This creates a portable package of our libraries.\npython3 -m pip install --target \"${DEST_DIR}\" -r \"${PYTHON_SRC_DIR}/requirements.txt\"\n\n# 5. Copy our main script into the destination folder.\ncp \"${PYTHON_SRC_DIR}/streaming_latency_test.py\" \"${DEST_DIR}/\"\n\n# 6. Copy our .env file into the destination folder.\ncp \"${PYTHON_SRC_DIR}/.env\" \"${DEST_DIR}/\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		4A8609382E51B06C009CCDC1 /* Sources */ = {
