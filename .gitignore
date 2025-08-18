@@ -21,3 +21,61 @@ DerivedData/
 .idea/
 .vscode/
 xcuserdata/
+chatur-mvp/venv/
+chatur-mvp/.idea/
+chatur-mvp/.vscode/
+chatur-mvp/.pytest_cache/
+chatur-mvp/.coverage
+chatur-mvp/.mypy_cache/
+chatur-mvp/.ropeproject/
+chatur-mvp/.env
+chatur-mvp/.env.local
+chatur-mvp/.env.development.local
+chatur-mvp/.env.test.local
+chatur-mvp/.env.production.local
+chatur-mvp/.env.development
+chatur-mvp/.env.test
+chatur-mvp/.env.production
+/chatur-mvp
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment - CRITICAL
+venv/
+.venv/
+
+# Secrets - CRITICAL: Never commit secrets!
+.env
+*.env
+
+# macOS folder attributes
+.DS_Store
+
+# VS Code specific settings
+.vscode/
+PythonEngine/.env
